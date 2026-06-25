@@ -364,6 +364,11 @@ window.onerror = function (msg, url, line) {
   return false;
 };
 
+// --- FUNÇÃO AUXILIAR DE TRANSIÇÃO (LERP LOCAL) ---
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 // --- BLOCO INTEGRADO DE CONFIGURAÇÕES GLOBAIS ---
 const PLAYER_RADIUS = 0.4;
 const PLAYER_HEIGHT = 1.7;
@@ -388,6 +393,7 @@ let peer = null;
 let conn = null;
 let mode = 'create';      
 let cancelWait = false;   
+let isPointerLocked = false; 
 
 // Identidades
 let myName = "VOCÊ";
@@ -439,12 +445,13 @@ let lastProcessedShotId = -1;
 // ============================================================
 const ARENA_SIZE = 40; 
 
-const matFloor = new THREE.MeshStandardMaterial({color: 0x909497, roughness: 0.9, metalness: 0.05}); 
-const matWall = new THREE.MeshStandardMaterial({color: 0x7b7d7d, roughness: 0.8, metalness: 0.1}); 
-const matContainerOrange = new THREE.MeshStandardMaterial({color: 0xd35400, roughness: 0.7, metalness: 0.3});
-const matContainerBlue = new THREE.MeshStandardMaterial({color: 0x2980b9, roughness: 0.7, metalness: 0.3});
-const matContainerRust = new THREE.MeshStandardMaterial({color: 0x7e5109, roughness: 0.85, metalness: 0.2});
-const matCrate = new THREE.MeshStandardMaterial({color: 0xa0522d, roughness: 0.85, metalness: 0});
+// CORREÇÃO VISUAL: Concreto tático escurecido de alta definição para contraste tático
+const matFloor = new THREE.MeshStandardMaterial({color: 0x333538, roughness: 0.85, metalness: 0.1}); 
+const matWall = new THREE.MeshStandardMaterial({color: 0x424547, roughness: 0.8, metalness: 0.15}); 
+const matContainerOrange = new THREE.MeshStandardMaterial({color: 0xb5511f, roughness: 0.7, metalness: 0.3});
+const matContainerBlue = new THREE.MeshStandardMaterial({color: 0x2c5066, roughness: 0.7, metalness: 0.3});
+const matContainerRust = new THREE.MeshStandardMaterial({color: 0x6b5a44, roughness: 0.85, metalness: 0.2});
+const matCrate = new THREE.MeshStandardMaterial({color: 0x8a6a3c, roughness: 0.85, metalness: 0});
 
 function addBox(x, y, z, w, h, d, mat) {
   const geo = new THREE.BoxGeometry(w, h, d);
@@ -474,10 +481,14 @@ function initThreeEngine() {
   scene.fog = new THREE.Fog(0xa0c4de, 45, 95);
 
   camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 300);
+  
+  // CORREÇÃO: Câmera adicionada na cena explicitamente para permitir render de arma acoplada
+  scene.add(camera);
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.25);
+  // CORREÇÃO: Luzes balanceadas para evitar overexposure
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.65);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.95);
   sun.position.set(10, 24, 6);
   sun.castShadow = true;
   scene.add(sun);
@@ -575,6 +586,9 @@ function buildOpponentSoldier() {
   const matSkin = new THREE.MeshStandardMaterial({color: 0xd2a374, roughness: 0.6}); 
   const matHelmet = new THREE.MeshStandardMaterial({color: 0x2e352b, roughness: 0.7}); 
   const matGunOpp = new THREE.MeshStandardMaterial({color: 0x050505, roughness: 0.6});
+  
+  // CORREÇÃO DEFINITIVA: Variável bootMat inserida com escopo local
+  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
 
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), matVest);
   torso.position.y = 0.925;
@@ -608,8 +622,6 @@ function buildOpponentSoldier() {
   rightLeg.position.set(0.15, 0.275, 0);
   oppGroup.add(rightLeg);
 
-  // CORREÇÃO: Variável bootMat declarada localmente e instanciada de forma segura
-  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
@@ -836,18 +848,18 @@ function updateMovement(dt, outIsMoving) {
   }
 }
 
-// CORREÇÃO: updateGunAnimations reincorporada ao arquivo unificado
+// CORREÇÃO DEFINITIVA: updateGunAnimations utiliza a função lerp local declarada no topo para evitar incompatibilidade
 function updateGunAnimations(dt, isMoving) {
   const targetX = isADS ? 0 : 0.2;
   const targetY = isADS ? -0.138 : -0.18;
   const targetZ = isADS ? -0.22 : -0.32;
   const targetFOV = isADS ? 48 : 78;
 
-  gunMesh.position.x = THREE.MathUtils.lerp(gunMesh.position.x, targetX, 15 * dt);
-  gunMesh.position.y = THREE.MathUtils.lerp(gunMesh.position.y, targetY, 15 * dt);
-  gunMesh.position.z = THREE.MathUtils.lerp(gunMesh.position.z, targetZ, 15 * dt);
+  gunMesh.position.x = lerp(gunMesh.position.x, targetX, 15 * dt);
+  gunMesh.position.y = lerp(gunMesh.position.y, targetY, 15 * dt);
+  gunMesh.position.z = lerp(gunMesh.position.z, targetZ, 15 * dt);
   
-  camera.fov = THREE.MathUtils.lerp(camera.fov, targetFOV, 15 * dt);
+  camera.fov = lerp(camera.fov, targetFOV, 15 * dt);
   camera.updateProjectionMatrix();
 
   if (isMoving && !isADS) {
@@ -858,9 +870,9 @@ function updateGunAnimations(dt, isMoving) {
     gunBobTime = 0;
   }
 
-  recoilKick = THREE.MathUtils.lerp(recoilKick, 0, 10 * dt);
+  recoilKick = lerp(recoilKick, 0, 10 * dt);
   gunMesh.position.z += recoilKick; 
-  gunMesh.rotation.x = THREE.MathUtils.lerp(gunMesh.rotation.x, -recoilKick * 1.5, 10 * dt);
+  gunMesh.rotation.x = lerp(gunMesh.rotation.x, -recoilKick * 1.5, 10 * dt);
 }
 
 function tryReload() {
@@ -1118,6 +1130,9 @@ window.addEventListener('DOMContentLoaded', () => {
     lockScreen.classList.add('hidden');
     hud.style.display = 'block';
     
+    // CORREÇÃO: Força o foco da janela para capturar teclado WASD instantaneamente
+    window.focus();
+
     try {
       renderer.domElement.requestPointerLock();
     } catch (e) {
@@ -1209,6 +1224,25 @@ function setupConnection() {
       type: 'handshake_name',
       name: myName
     });
+  });
+
+  // CORREÇÃO DEFINITIVA: Sincronização e escuta da trava física de mira colocada de forma estável no DOM
+  document.addEventListener('pointerlockchange', () => {
+    isPointerLocked = (document.pointerLockElement === renderer.domElement);
+    const hint = document.getElementById('lockHint');
+    if (isPointerLocked) {
+      hint.style.display = 'none';
+    } else if (gameStarted) {
+      hint.style.display = 'block';
+    }
+  });
+
+  // CORREÇÃO DEFINITIVA: Movimentação de câmera ativada no momento do jogo, permitindo girar 100% das vezes sob o foco
+  document.addEventListener('mousemove', e => {
+    if (!gameStarted) return;
+    yaw -= e.movementX * 0.0022;
+    pitch -= e.movementY * 0.0022;
+    pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch));
   });
 
   conn.on('data', (data) => {
