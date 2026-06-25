@@ -194,6 +194,8 @@
     font-size:11px; letter-spacing:.1em; color:#8d9094; background:rgba(10,11,12,.6);
     padding:6px 14px; display:none;
   }
+
+  ::selection{background:var(--rust);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
@@ -579,7 +581,7 @@ function initThreeEngine() {
       const ox = (Math.random() - 0.5) * 2.2;
       const oz = (Math.random() - 0.5) * 2.2;
       const s = 1.0 + Math.random() * 0.4;
-      addBox(x + ox, s / 2, z + oz, s, s, s, matCrate);
+      addBox(x + ox, s/2, z + oz, s, s, s, matCrate);
     }
   }
   spawnCrates(-22, -22);
@@ -609,8 +611,42 @@ function buildOpponentSoldier() {
   const matHelmet = new THREE.MeshStandardMaterial({color: 0x2e352b, roughness: 0.7}); 
   const matGunOpp = new THREE.MeshStandardMaterial({color: 0x050505, roughness: 0.6});
   
-  // CORREÇÃO: Variável bootMat declarada localmente e instanciada de forma segura
+  // CORREÇÃO: Variável bootMat instanciada localmente de forma segura
   const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), matVest);
+  torso.position.y = 0.925;
+  oppGroup.add(torso);
+
+  const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), matShirt);
+  leftArm.position.set(-0.31, 0.95, 0);
+  oppGroup.add(leftArm);
+
+  const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), matShirt);
+  rightArm.position.set(0.31, 0.95, 0.08);
+  oppGroup.add(rightArm);
+
+  // CORREÇÃO DEFINITIVA: Cabeça e Capacete declarados de forma segura e instanciados localmente
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), matSkin);
+  head.position.y = 1.35;
+  oppGroup.add(head);
+
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2), matHelmet);
+  helmet.position.y = 1.36;
+  oppGroup.add(helmet);
+
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.08), new THREE.MeshBasicMaterial({color: 0x111111}));
+  visor.position.set(0, 1.37, -0.13);
+  oppGroup.add(visor);
+
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.16), matPants);
+  leftLeg.position.set(-0.15, 0.275, 0);
+  oppGroup.add(leftLeg);
+
+  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.16), matPants);
+  rightLeg.position.set(0.15, 0.275, 0);
+  oppGroup.add(rightLeg);
+
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
@@ -679,6 +715,72 @@ function buildM4Procedural() {
   gunHolder.add(gunMesh);
   
   camera.add(gunHolder); 
+}
+
+function spawnBulletTracer(startPos, endPos) {
+  const distance = startPos.distanceTo(endPos);
+  const tracerGeo = new THREE.CylinderGeometry(0.006, 0.006, distance, 4);
+  const tracerMat = new THREE.MeshBasicMaterial({color: 0xffe294, transparent: true, opacity: 0.9});
+  
+  const mesh = new THREE.Mesh(tracerGeo, tracerMat);
+  mesh.position.copy(startPos).add(endPos).multiplyScalar(0.5);
+  mesh.lookAt(endPos);
+  mesh.rotateX(Math.PI / 2);
+  
+  scene.add(mesh);
+  tracers.push({ mesh: mesh, birthTime: performance.now(), lifeTime: 80 });
+}
+
+function spawnImpactParticles(position, normal) {
+  const particleCount = 10;
+  const pGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+  const pMat = new THREE.MeshBasicMaterial({color: 0xff9c3b});
+
+  for(let i=0; i<particleCount; i++) {
+    const mesh = new THREE.Mesh(pGeo, pMat);
+    mesh.position.copy(position);
+    scene.add(mesh);
+
+    const vel = normal.clone().multiplyScalar(2 + Math.random() * 3);
+    vel.x += (Math.random() - 0.5) * 2;
+    vel.y += (Math.random() - 0.5) * 2 + 1; 
+    vel.z += (Math.random() - 0.5) * 2;
+
+    particles.push({
+      mesh: mesh,
+      velocity: vel,
+      birthTime: performance.now(),
+      lifeTime: 300 + Math.random() * 200
+    });
+  }
+}
+
+function updateTracersAndParticles(now) {
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const t = tracers[i];
+    const age = now - t.birthTime;
+    if (age > t.lifeTime) {
+      scene.remove(t.mesh);
+      tracers.splice(i, 1);
+    } else {
+      t.mesh.material.opacity = 1 - (age / t.lifeTime);
+    }
+  }
+
+  const gravityVal = 9.8;
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    const age = now - p.birthTime;
+    if (age > p.lifeTime) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    } else {
+      const dt = 0.016; 
+      p.velocity.y -= gravityVal * dt; 
+      p.mesh.position.addScaledVector(p.velocity, dt);
+      p.mesh.scale.multiplyScalar(0.95); 
+    }
+  }
 }
 
 // --- CONTROLES DE MOVIMENTAÇÃO (PLAYER CONTROLLER) ---
