@@ -360,7 +360,7 @@
 <script>
 // --- DIAGNÓSTICO ATIVO DE EXCEÇÃO ---
 window.onerror = function (msg, url, line) {
-  alert("ERRO DE CONTEXTO DETECTADO:\n\n" + msg + "\n\nLinha: " + line + "\nArquivo: " + url);
+  alert("ERRO DE DEPURAÇÃO DETECTADO:\n\n" + msg + "\n\nLinha: " + line + "\nArquivo: " + url);
   return false;
 };
 
@@ -608,13 +608,13 @@ function buildOpponentSoldier() {
   rightLeg.position.set(0.15, 0.275, 0);
   oppGroup.add(rightLeg);
 
-  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
+  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515}); // CORREÇÃO: Definido localmente de forma segura
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   rightBoot.position.set(0.15, 0.04, -0.02);
   
-  // CORREÇÃO DE PARAMETRO: Segmentado de forma segura de um em um
+  // Sincronização retro individual
   oppGroup.add(leftBoot);
   oppGroup.add(rightBoot);
 
@@ -1027,7 +1027,7 @@ window.addEventListener('DOMContentLoaded', () => {
   copyCodeBtn = document.getElementById('copyCodeBtn');
   lockBtn = document.getElementById('lockBtn');
 
-  // CORREÇÃO: Inicializadores gráficos movidos obrigatoriamente para dentro da leitura segura do DOM
+  // Inicializadores gráficos movidos para carregar obrigatoriamente sob escopo do DOM
   initThreeEngine();
   buildOpponentSoldier();
   buildM4Procedural(); 
