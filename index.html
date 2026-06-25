@@ -358,6 +358,13 @@
 </div>
 
 <script>
+// --- DIAGNÓSTICO ATIVO DE EXCEÇÃO ---
+// Se houver qualquer erro no carregamento da tela do jogo, exibirá um aviso direto na tela
+window.onerror = function (msg, url, line) {
+  alert("ERRO DE DEPURAÇÃO DETECTADO:\n\n" + msg + "\n\nLinha: " + line + "\nArquivo: " + url);
+  return false;
+};
+
 // --- BLOCO INTEGRADO DE CONFIGURAÇÕES GLOBAIS ---
 const PLAYER_RADIUS = 0.4;
 const PLAYER_HEIGHT = 1.7;
@@ -398,7 +405,7 @@ let reloading = false;
 let dead = false;
 let lastShotTime = 0;
 
-// Mapeamentos do Motor 3D Unificados (CORREÇÃO DE REDECLARAÇÕES)
+// Mapeamentos do Motor 3D Unificados
 let scene = null;
 let camera = null;
 let renderer = null;
@@ -606,7 +613,10 @@ function buildOpponentSoldier() {
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   rightBoot.position.set(0.15, 0.04, -0.02);
-  oppGroup.add(leftBoot, rightBoot);
+  
+  // CORREÇÃO: Adicionados de forma sequencial para suporte retro de renderizador
+  oppGroup.add(leftBoot);
+  oppGroup.add(rightBoot);
 
   const oppWeapon = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.45), matGunOpp);
   oppWeapon.position.set(0.15, 0.85, -0.25);
@@ -900,16 +910,17 @@ function showHitmarker() {
   setTimeout(() => hm.style.opacity = '0', 90);
 }
 
+// ============================================================
+// ATUALIZAÇÕES DO HUD E INTERFACE
+// ============================================================
 function updateAmmoHud() {
   document.getElementById('ammoCur').textContent = reloading ? '...' : myAmmo;
   document.getElementById('ammoReserve').textContent = myReserve;
 }
-
 function updateHpHud() {
   document.getElementById('hpval').textContent = Math.max(0, Math.round(myHp));
   document.getElementById('hpbar-fill').style.width = Math.max(0, myHp) + '%';
 }
-
 function updateScoreHud() {
   document.getElementById('scoreMe').textContent = myKills;
   document.getElementById('scoreHim').textContent = myDeaths; 
@@ -932,7 +943,6 @@ function flashDamage() {
   setTimeout(() => f.style.opacity = '0', 220);
 }
 
-// FEED DE ELIMINAÇÕES CORRIGIDO: Exibe os nomes táticos reais informados no menu
 function addKillfeed(text) {
   const el = document.createElement('div');
   el.className = 'killmsg';
@@ -1264,6 +1274,11 @@ function animate() {
 // Configurações físicas e de spawn
 const SPAWN_P1 = new THREE.Vector3(-30, PLAYER_HEIGHT, -30);
 const SPAWN_P2 = new THREE.Vector3(30, PLAYER_HEIGHT, 30);
+
+// Inicializadores
+initThreeEngine();
+buildOpponentSoldier();
+buildM4Procedural(); // Chamada física da arma M4 tática corrigida e ativada
 
 updateHpHud();
 updateAmmoHud();
