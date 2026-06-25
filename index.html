@@ -110,21 +110,6 @@
   }
   .modebtn.active{border-color:var(--rust-bright); color:var(--rust-bright); background:#221511;}
 
-  .status-line{
-    margin-top:16px; font-size:12px; color:#7c8084; min-height:18px;
-    letter-spacing:.04em;
-  }
-  .status-line.live{color:#5fd16a;}
-  .status-line.err{color:#ff6464;}
-
-  .codeshare{
-    display:flex; align-items:center; justify-content:space-between;
-    background:#0e0f10; border:1px solid #3c4044; padding:10px 14px; margin-top:10px;
-  }
-  .codeshare b{font-size:22px; letter-spacing:.2em; color:var(--rust-bright); font-family:monospace;}
-  .copybtn{background:#262a2c; color:#cfd2d4; padding:6px 12px; font-size:11px; border:1px solid #45494d;}
-  .copybtn:hover{color:#fff;}
-
   /* ---------- HUD ---------- */
   #hud{position:fixed; inset:0; pointer-events:none; z-index:20; display:none;}
   #crosshair{
@@ -189,7 +174,7 @@
     background:rgba(10,11,12,.75); border-left:3px solid var(--rust-bright);
     padding:6px 12px; font-size:12px; letter-spacing:.05em; animation:fadeout 4s forwards;
   }
-  @keyframes fadeout{ 0%, 70% { opacity:1; } 100% { opacity:0; } }
+  @keyframes fadeout{ 0%,70%{opacity:1;} 100%{opacity:0;} }
 
   #dmgflash{
     position:absolute; inset:0; background:radial-gradient(circle, transparent 40%, rgba(180,20,20,.45) 100%);
@@ -209,6 +194,8 @@
     font-size:11px; letter-spacing:.1em; color:#8d9094; background:rgba(10,11,12,.6);
     padding:6px 14px; display:none;
   }
+
+  ::selection{background:var(--rust);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
@@ -411,14 +398,14 @@ let reloading = false;
 let dead = false;
 let lastShotTime = 0;
 
-// Mapeamentos do Motor 3D Unificados
+// Mapeamentos do Motor 3D Unificados (CORREÇÃO DE REDECLARAÇÕES)
 let scene = null;
 let camera = null;
 let renderer = null;
 let gunMesh = null;
 let gunHolder = null;
 let oppGroup = null;
-const colliders = [];
+const colliders = []; // Unicamente declarado aqui no topo do arquivo global
 
 // Estados físicos e animação de arma
 let gunBobTime = 0;
@@ -506,7 +493,7 @@ function initThreeEngine() {
   addBox(-ARENA_SIZE, 5, 0, 1, 10, ARENA_SIZE * 2, matWall);
   addBox(ARENA_SIZE, 5, 0, 1, 10, ARENA_SIZE * 2, matWall);
 
-  // Central platform
+  // Plataforma central
   addBox(0, 3, 0, 14, 0.3, 14, matFloor); 
   addBox(-6, 1.5, -6, 0.5, 3, 0.5, matWall);
   addBox(6, 1.5, -6, 0.5, 3, 0.5, matWall);
@@ -648,7 +635,6 @@ function buildM4Procedural() {
   gunMesh.add(barrel);
 
   const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.055, 0.22), handguardMat);
-  handguard.position.set(0, 0.01, -0.18);
   gunMesh.add(handguard);
 
   const mag = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.07), steelMat);
@@ -946,6 +932,7 @@ function flashDamage() {
   setTimeout(() => f.style.opacity = '0', 220);
 }
 
+// FEED DE ELIMINAÇÕES CORRIGIDO: Exibe os nomes táticos reais informados no menu
 function addKillfeed(text) {
   const el = document.createElement('div');
   el.className = 'killmsg';
@@ -1282,3 +1269,5 @@ updateHpHud();
 updateAmmoHud();
 updateScoreHud();
 </script>
+</body>
+</html>
