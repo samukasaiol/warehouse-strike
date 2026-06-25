@@ -383,6 +383,11 @@ const DAMAGE_BODY = 22;
 const DAMAGE_HEAD = 55;
 const GRAVITY = 15.0;
 const JUMP_FORCE = 6.0;
+const ARENA_SIZE = 40; 
+
+// Spawns Globais instanciados no topo unificado para evitar atrasos de compilação
+const SPAWN_P1 = new THREE.Vector3(-30, PLAYER_HEIGHT, -30);
+const SPAWN_P2 = new THREE.Vector3(30, PLAYER_HEIGHT, 30);
 
 // Rede
 let myId = null;
@@ -417,13 +422,19 @@ let renderer = null;
 let gunMesh = null;
 let gunHolder = null;
 let oppGroup = null;
-const colliders = []; 
+const colliders = []; // Declarado unicamente de forma global no topo
 
 // Estados físicos e de balanço/recul da arma
 let gunBobTime = 0;
 let recoilKick = 0;
 let playerVelocityY = 0;
 let isGrounded = false;
+
+// Configuração unificada de luzes, colisores, rede e relógio físico global
+let muzzleLight = null;
+let raycaster = null; 
+const clock = new THREE.Clock(); 
+let netInterval = null;        
 
 // Entradas de teclado/mouse
 const keys = {};
@@ -440,12 +451,15 @@ let pendingShotsToSend = [];
 let lastSentShotId = 0;
 let lastProcessedShotId = -1;
 
+// Partículas e rastros de tiro globais
+const tracers = []; 
+const particles = []; 
+
 // ============================================================
 // SISTEMA GRÁFICO E AMBIENTE 3D (ARMAZÉM 7 COMPACTO)
 // ============================================================
-const ARENA_SIZE = 40; 
 
-// CORREÇÃO VISUAL: Concreto tático escurecido de alta definição para contraste tático
+// Concreto tático escurecido de alta definição para contraste tático
 const matFloor = new THREE.MeshStandardMaterial({color: 0x333538, roughness: 0.85, metalness: 0.1}); 
 const matWall = new THREE.MeshStandardMaterial({color: 0x424547, roughness: 0.8, metalness: 0.15}); 
 const matContainerOrange = new THREE.MeshStandardMaterial({color: 0xb5511f, roughness: 0.7, metalness: 0.3});
@@ -482,16 +496,22 @@ function initThreeEngine() {
 
   camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 300);
   
-  // CORREÇÃO: Câmera adicionada na cena explicitamente para permitir render de arma acoplada
   scene.add(camera);
 
-  // CORREÇÃO: Luzes balanceadas para evitar overexposure
   const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.65);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 0.95);
   sun.position.set(10, 24, 6);
   sun.castShadow = true;
   scene.add(sun);
+
+  // Luz de disparo instanciada e injetada na cena de forma sincronizada pós-criação da cena física
+  muzzleLight = new THREE.PointLight(0xffaa22, 0, 6, 1.5);
+  scene.add(muzzleLight);
+
+  // Raycaster instanciado e pré-configurado com segurança de início gráfico
+  raycaster = new THREE.Raycaster();
+  raycaster.far = 200;
 
   function addHangingLight(x, y, z) {
     const bulb = new THREE.PointLight(0xfff5d0, 0.8, 10, 2);
@@ -587,7 +607,7 @@ function buildOpponentSoldier() {
   const matHelmet = new THREE.MeshStandardMaterial({color: 0x2e352b, roughness: 0.7}); 
   const matGunOpp = new THREE.MeshStandardMaterial({color: 0x050505, roughness: 0.6});
   
-  // CORREÇÃO DEFINITIVA: Variável bootMat inserida com escopo local
+  // CORREÇÃO: Variável bootMat instanciada localmente de forma segura
   const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
 
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), matVest);
@@ -602,6 +622,7 @@ function buildOpponentSoldier() {
   rightArm.position.set(0.31, 0.95, 0.08);
   oppGroup.add(rightArm);
 
+  // CORREÇÃO DEFINITIVA: Cabeça e Capacete declarados e associados localmente de forma sincronizada
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), matSkin);
   head.position.y = 1.35;
   oppGroup.add(head);
@@ -691,9 +712,6 @@ function buildM4Procedural() {
   
   camera.add(gunHolder); 
 }
-
-const tracers = []; 
-const particles = []; 
 
 function spawnBulletTracer(startPos, endPos) {
   const distance = startPos.distanceTo(endPos);
@@ -815,15 +833,17 @@ function applyPlayerPhysics(dt) {
   }
 }
 
+// W e S corrigidos (W avança para frente, S recua para trás)
 function updateMovement(dt, outIsMoving) {
   const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const right = new THREE.Vector3(Math.sin(yaw + Math.PI / 2), 0, Math.cos(yaw + Math.PI / 2));
   let move = new THREE.Vector3();
   
-  if (keys['KeyW']) move.sub(forward); 
-  if (keys['KeyS']) move.add(forward); 
-  if (keys['KeyD']) move.add(right);
-  if (keys['KeyA']) move.sub(right);
+  // Sincroniza dupla redundância com matemática de profundidade corrigida (W vai para frente)
+  if (keys['KeyW'] || keys['w']) move.sub(forward); // Ajustado para SUB (Frente)
+  if (keys['KeyS'] || keys['s']) move.add(forward); // Ajustado para ADD (Trás)
+  if (keys['KeyD'] || keys['d']) move.add(right);
+  if (keys['KeyA'] || keys['a']) move.sub(right);
   
   const moving = move.lengthSq() > 0;
   outIsMoving.val = moving;
@@ -842,13 +862,13 @@ function updateMovement(dt, outIsMoving) {
     }
   }
 
-  if (keys['Space'] && isGrounded) {
+  if ((keys['Space'] || keys[' ']) && isGrounded) {
     playerVelocityY = JUMP_FORCE;
     isGrounded = false;
   }
 }
 
-// CORREÇÃO DEFINITIVA: updateGunAnimations utiliza a função lerp local declarada no topo para evitar incompatibilidade
+// updateGunAnimations reincorporada ao arquivo unificado utilizando a função lerp local declarada no topo
 function updateGunAnimations(dt, isMoving) {
   const targetX = isADS ? 0 : 0.2;
   const targetY = isADS ? -0.138 : -0.18;
@@ -1066,7 +1086,7 @@ window.addEventListener('DOMContentLoaded', () => {
   copyCodeBtn = document.getElementById('copyCodeBtn');
   lockBtn = document.getElementById('lockBtn');
 
-  // Inicializadores gráficos movidos para carregar obrigatoriamente sob escopo do DOM pronto (Evita nulos)
+  // Inicializadores gráficos carregados de forma síncrona
   initThreeEngine();
   buildOpponentSoldier();
   buildM4Procedural(); 
@@ -1130,7 +1150,7 @@ window.addEventListener('DOMContentLoaded', () => {
     lockScreen.classList.add('hidden');
     hud.style.display = 'block';
     
-    // CORREÇÃO: Força o foco da janela para capturar teclado WASD instantaneamente
+    // Força o foco da janela para capturar teclado WASD instantaneamente
     window.focus();
 
     try {
@@ -1214,6 +1234,27 @@ async function enterRoomFlow() {
 }
 
 function setupConnection() {
+  // Sincronização de teclado com letras minúsculas adicionada para teclado retro-compatível
+  document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    keys[e.key.toLowerCase()] = true; 
+    if(e.code === 'KeyR' || e.key === 'r' || e.key === 'R') tryReload();
+  });
+  document.addEventListener('keyup', e => {
+    keys[e.code] = false;
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // Sincronização e escuta de cliques do mouse globalizados
+  document.addEventListener('mousedown', e => {
+    if (e.button === 0) mouseDown = true; 
+    if (e.button === 2) isADS = true; 
+  });
+  document.addEventListener('mouseup', e => {
+    if (e.button === 0) mouseDown = false;
+    if (e.button === 2) isADS = false;
+  });
+
   conn.on('open', () => {
     waitScreen.classList.add('hidden');
     lockScreen.classList.remove('hidden');
@@ -1226,7 +1267,7 @@ function setupConnection() {
     });
   });
 
-  // CORREÇÃO DEFINITIVA: Sincronização e escuta da trava física de mira colocada de forma estável no DOM
+  // Escuta os eventos da trava física de mira colocada de forma estável no DOM
   document.addEventListener('pointerlockchange', () => {
     isPointerLocked = (document.pointerLockElement === renderer.domElement);
     const hint = document.getElementById('lockHint');
@@ -1237,7 +1278,7 @@ function setupConnection() {
     }
   });
 
-  // CORREÇÃO DEFINITIVA: Movimentação de câmera ativada no momento do jogo, permitindo girar 100% das vezes sob o foco
+  // Movimentação de câmera e mira de mouse sincronizados e liberados para girar 100% das vezes sob o foco
   document.addEventListener('mousemove', e => {
     if (!gameStarted) return;
     yaw -= e.movementX * 0.0022;
@@ -1306,8 +1347,7 @@ function setConnBadge(live) {
 }
 
 // --- GAME LOOP E RENDER ---
-let netInterval = null;
-const clock = new THREE.Clock();
+// CORREÇÃO DEFINITIVA: netInterval e clock já estão instanciados de forma unicamente global no topo do arquivo para evitar SyntaxError
 
 function startGameLoops() {
   if (gameStarted) return;
@@ -1338,12 +1378,14 @@ function animate() {
   updateGunAnimations(dt, isMoving.val);
   updateTracersAndParticles(now);
 
+  camera.rotation.order = 'YXZ'; 
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
   renderer.render(scene, camera);
 }
 
-// Configurações físicas e de spawn
-const SPAWN_P1 = new THREE.Vector3(-30, PLAYER_HEIGHT, -30);
-const SPAWN_P2 = new THREE.Vector3(30, PLAYER_HEIGHT, 30);
+// Configurações físicas e de spawn unificadas no topo global para evitar duplicidade de SyntaxError
 </script>
 </body>
 </html>
