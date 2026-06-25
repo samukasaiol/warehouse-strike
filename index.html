@@ -411,7 +411,7 @@ let renderer = null;
 let gunMesh = null;
 let gunHolder = null;
 let oppGroup = null;
-const colliders = []; // Declarado unicamente de forma global no topo
+const colliders = []; 
 
 // Estados físicos e de balanço/recul da arma
 let gunBobTime = 0;
@@ -608,13 +608,13 @@ function buildOpponentSoldier() {
   rightLeg.position.set(0.15, 0.275, 0);
   oppGroup.add(rightLeg);
 
-  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515}); // CORREÇÃO: Definido localmente de forma segura
+  // CORREÇÃO: Variável bootMat declarada localmente e instanciada de forma segura
+  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   rightBoot.position.set(0.15, 0.04, -0.02);
   
-  // Sincronização retro individual
   oppGroup.add(leftBoot);
   oppGroup.add(rightBoot);
 
@@ -836,6 +836,33 @@ function updateMovement(dt, outIsMoving) {
   }
 }
 
+// CORREÇÃO: updateGunAnimations reincorporada ao arquivo unificado
+function updateGunAnimations(dt, isMoving) {
+  const targetX = isADS ? 0 : 0.2;
+  const targetY = isADS ? -0.138 : -0.18;
+  const targetZ = isADS ? -0.22 : -0.32;
+  const targetFOV = isADS ? 48 : 78;
+
+  gunMesh.position.x = THREE.MathUtils.lerp(gunMesh.position.x, targetX, 15 * dt);
+  gunMesh.position.y = THREE.MathUtils.lerp(gunMesh.position.y, targetY, 15 * dt);
+  gunMesh.position.z = THREE.MathUtils.lerp(gunMesh.position.z, targetZ, 15 * dt);
+  
+  camera.fov = THREE.MathUtils.lerp(camera.fov, targetFOV, 15 * dt);
+  camera.updateProjectionMatrix();
+
+  if (isMoving && !isADS) {
+    gunBobTime += dt * 14;
+    gunMesh.position.x += Math.cos(gunBobTime) * 0.012;
+    gunMesh.position.y += Math.sin(gunBobTime * 2) * 0.010;
+  } else {
+    gunBobTime = 0;
+  }
+
+  recoilKick = THREE.MathUtils.lerp(recoilKick, 0, 10 * dt);
+  gunMesh.position.z += recoilKick; 
+  gunMesh.rotation.x = THREE.MathUtils.lerp(gunMesh.rotation.x, -recoilKick * 1.5, 10 * dt);
+}
+
 function tryReload() {
   if (reloading || dead) return;
   if (myAmmo === MAG_SIZE || myReserve <= 0) return;
@@ -1027,7 +1054,7 @@ window.addEventListener('DOMContentLoaded', () => {
   copyCodeBtn = document.getElementById('copyCodeBtn');
   lockBtn = document.getElementById('lockBtn');
 
-  // Inicializadores gráficos movidos para carregar obrigatoriamente sob escopo do DOM
+  // Inicializadores gráficos movidos para carregar obrigatoriamente sob escopo do DOM pronto (Evita nulos)
   initThreeEngine();
   buildOpponentSoldier();
   buildM4Procedural(); 
