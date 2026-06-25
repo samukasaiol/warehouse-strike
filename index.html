@@ -359,9 +359,8 @@
 
 <script>
 // --- DIAGNÓSTICO ATIVO DE EXCEÇÃO ---
-// Se houver qualquer erro no carregamento da tela do jogo, exibirá um aviso direto na tela
 window.onerror = function (msg, url, line) {
-  alert("ERRO DE DEPURAÇÃO DETECTADO:\n\n" + msg + "\n\nLinha: " + line + "\nArquivo: " + url);
+  alert("ERRO DE CONTEXTO DETECTADO:\n\n" + msg + "\n\nLinha: " + line + "\nArquivo: " + url);
   return false;
 };
 
@@ -412,9 +411,9 @@ let renderer = null;
 let gunMesh = null;
 let gunHolder = null;
 let oppGroup = null;
-const colliders = []; // Unicamente declarado aqui no topo do arquivo global
+const colliders = []; // Declarado unicamente de forma global no topo
 
-// Estados físicos e animação de arma
+// Estados físicos e de balanço/recul da arma
 let gunBobTime = 0;
 let recoilKick = 0;
 let playerVelocityY = 0;
@@ -547,7 +546,7 @@ function initThreeEngine() {
       const ox = (Math.random() - 0.5) * 2.2;
       const oz = (Math.random() - 0.5) * 2.2;
       const s = 1.0 + Math.random() * 0.4;
-      addBox(x + ox, s / 2, z + oz, s, s, s, matCrate);
+      addBox(x + ox, s/2, z + oz, s, s, s, matCrate);
     }
   }
   spawnCrates(-22, -22);
@@ -609,12 +608,13 @@ function buildOpponentSoldier() {
   rightLeg.position.set(0.15, 0.275, 0);
   oppGroup.add(rightLeg);
 
+  const bootMat = new THREE.MeshStandardMaterial({color: 0x151515});
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   leftBoot.position.set(-0.15, 0.04, -0.02);
   const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.22), bootMat);
   rightBoot.position.set(0.15, 0.04, -0.02);
   
-  // CORREÇÃO: Adicionados de forma sequencial para suporte retro de renderizador
+  // CORREÇÃO DE PARAMETRO: Segmentado de forma segura de um em um
   oppGroup.add(leftBoot);
   oppGroup.add(rightBoot);
 
@@ -1027,6 +1027,15 @@ window.addEventListener('DOMContentLoaded', () => {
   copyCodeBtn = document.getElementById('copyCodeBtn');
   lockBtn = document.getElementById('lockBtn');
 
+  // CORREÇÃO: Inicializadores gráficos movidos obrigatoriamente para dentro da leitura segura do DOM
+  initThreeEngine();
+  buildOpponentSoldier();
+  buildM4Procedural(); 
+
+  updateHpHud();
+  updateAmmoHud();
+  updateScoreHud();
+
   modeCreateBtn.onclick = () => { 
     mode = 'create'; 
     modeCreateBtn.classList.add('active'); 
@@ -1274,15 +1283,6 @@ function animate() {
 // Configurações físicas e de spawn
 const SPAWN_P1 = new THREE.Vector3(-30, PLAYER_HEIGHT, -30);
 const SPAWN_P2 = new THREE.Vector3(30, PLAYER_HEIGHT, 30);
-
-// Inicializadores
-initThreeEngine();
-buildOpponentSoldier();
-buildM4Procedural(); // Chamada física da arma M4 tática corrigida e ativada
-
-updateHpHud();
-updateAmmoHud();
-updateScoreHud();
 </script>
 </body>
 </html>
